@@ -15,6 +15,7 @@ test("a catalog refresh cannot replace an existing session's model", async ({ pa
     if (request.method() === "POST" && new URL(request.url()).pathname === `/api/session/${sessionID}/model`)
       switches.push(request.postDataJSON())
   })
+
   const view = await openSession(page, {
     name: "CatalogSelection",
     sessions: [{ id: sessionID, agent: "build", model: { id: "alpha", providerID: "opencode", variant: "high" } }],
@@ -22,6 +23,7 @@ test("a catalog refresh cannot replace an existing session's model", async ({ pa
     onPrompt: (input) => void prompts.push(input.body),
     seed: { storage: { "opencode.global.dat:model": { recent: [{ providerID: "opencode", modelID: "beta" }] } } },
   })
+
   const control = page.locator('[data-action="composer-model"]')
   await expect(control).toHaveText("Alpha")
   await view.editor.fill("Keep my selected model")

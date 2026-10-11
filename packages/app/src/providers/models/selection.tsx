@@ -270,6 +270,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       if (!configuredModel.ready()) return
 
       const session = durable()
+
       // Catalog availability must not replace a user's choice with a default on the next submission.
       const item =
         scope()?.model ??
