@@ -279,6 +279,64 @@ test("vertical tab gaps hover and select the nearest row", async ({ page }, test
   }
 })
 
+test("tab preview stays open across its row and preview, then closes outside both", async ({ page }) => {
+  await mockWorkspace(page, {
+    name: "Tabs",
+    sessions: [a, b, c],
+    seed: { settings: { appearance: { tabLayout: "vertical" } } },
+  })
+  await page.goto(sessionHref(a.id))
+  const sidebar = page.locator('[data-slot="vertical-tabs-sidebar"]')
+  const rows = sidebar.locator("[data-titlebar-tab]")
+  const tabB = rows.filter({ has: page.locator(`a[href="${sessionHref(b.id)}"]`) })
+  const tabC = rows.filter({ has: page.locator(`a[href="${sessionHref(c.id)}"]`) })
+  const preview = page.locator('[data-component="session-tab-popover"]')
+  await expect(rows.locator("[data-titlebar-tab-title]")).toHaveText([a.title, b.title, c.title])
+  await page.clock.install()
+  await tabB.hover()
+  await page.clock.runFor(800)
+  await expect(preview).toContainText(b.title)
+  await page.clock.runFor(10_000)
+  await expect(preview).toContainText(b.title)
+
+  const box = await tabB.boundingBox()
+  if (!box) throw new Error("vertical tab has no bounding box")
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height + 1)
+  await page.clock.runFor(1000)
+  await expect(preview).toContainText(b.title)
+  await tabB.getByRole("button", { name: "Close tab", exact: true }).hover()
+  await page.clock.runFor(1000)
+  await expect(preview).toContainText(b.title)
+  await tabC.hover({ position: { x: box.width - 1, y: box.height / 2 } })
+  await page.clock.runFor(800)
+  await expect(preview).toHaveCount(1)
+  await expect(preview).toContainText(c.title)
+
+  await expect(preview).toHaveCSS("pointer-events", "auto")
+  const card = await preview.boundingBox()
+  const row = await tabC.boundingBox()
+  if (!card || !row) throw new Error("tab preview or row has no bounding box")
+  // Cross the actual gutter, rather than teleporting directly onto the preview.
+  await page.mouse.move((row.x + row.width + card.x) / 2, row.y + row.height / 2)
+  await page.clock.runFor(100)
+  await expect(preview).toContainText(c.title)
+  await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2)
+  await page.clock.runFor(10_000)
+  await expect(preview).toContainText(c.title)
+  await page.mouse.move(card.x + card.width + 20, card.y + card.height + 20)
+  await page.clock.runFor(1000)
+  await expect(preview).toHaveCount(0)
+
+  await tabB.hover()
+  await page.clock.runFor(800)
+  await expect(preview).toContainText(b.title)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height + 20, { steps: 8 })
+  await page.clock.runFor(1000)
+  await expect(preview).toHaveCount(0)
+  await page.mouse.up()
+})
+
 test("closing the active server's last tab opens the remaining server tab", async ({ page }) => {
   const sessionA = session({ id: "ses_server_a", directory: "C:/server-a", title: "Server A session" })
   const sessionB = session({ id: "ses_server_b", directory: "/home/server-b", title: "Server B session" })

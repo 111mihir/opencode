@@ -7,9 +7,6 @@ import "./tab-popover.css"
 // Initial hover delay before the preview appears, per design.
 const OPEN_DELAY = 750
 
-// Mouse-out delay: begin closing immediately (a brief exit animation plays).
-const CLOSE_DELAY = 0
-
 // After a preview closes, hovering a neighbouring tab within this window skips
 // the open delay — mirrors the tooltip's skipDelayDuration so moving across
 // tabs doesn't re-wait the full delay each time.
@@ -60,9 +57,8 @@ export function TabPreviewPopover(props: {
       open={props.open && !mobile()}
       onOpenChange={handleOpenChange}
       openDelay={resolveOpenDelay()}
-      closeDelay={CLOSE_DELAY}
-      // The preview is non-interactive (pointer-events: none), so there is no
-      // safe area to traverse — leaving the tab hides it immediately.
+      // Use HoverCard's close grace to cross the gutter. A directional safe area
+      // could keep this preview open while hovering a neighboring tab.
       ignoreSafeArea
       placement={placement()}
       gutter={6}
