@@ -202,6 +202,83 @@ test("vertical tabs resize, scroll, show shortcut hints, and navigate", async ({
   await expectPath(page, sessionHref(b.id))
 })
 
+test("vertical tab gaps hover and select the nearest row", async ({ page }, testInfo) => {
+  await mockWorkspace(page, {
+    name: "Tabs",
+    sessions: [a, b, c],
+    seed: { settings: { appearance: { tabLayout: "vertical" } } },
+  })
+  await page.goto(sessionHref(a.id))
+
+  const sidebar = page.locator('[data-slot="vertical-tabs-sidebar"]')
+  const rows = sidebar.locator("[data-titlebar-tab]")
+  const tabB = rows.filter({ has: page.locator(`a[href="${sessionHref(b.id)}"]`) })
+  const tabC = rows.filter({ has: page.locator(`a[href="${sessionHref(c.id)}"]`) })
+  await expect(rows.locator("[data-titlebar-tab-title]")).toHaveText([a.title, b.title, c.title])
+  const upper = await tabB.boundingBox()
+  const lower = await tabC.boundingBox()
+  if (!upper || !lower) throw new Error("vertical tabs have no bounding boxes")
+  expect(lower.y - upper.y - upper.height).toBe(4)
+
+  const middle = upper.y + upper.height + 2
+  await page.mouse.move(upper.x + upper.width / 2, middle)
+  await sidebar.screenshot({ path: testInfo.outputPath("mid-gap.png") })
+
+  // The two halves belong to their nearest row; an exact tie belongs to the next row.
+  for (const direction of ["ltr", "rtl"]) {
+    await page.locator("html").evaluate((element, value) => element.setAttribute("dir", value), direction)
+    const box = await tabB.boundingBox()
+    if (!box) throw new Error("vertical tab has no bounding box")
+    for (const x of [box.x + 1, box.x + box.width / 2, box.x + box.width - 1]) {
+      for (const [offset, id] of [
+        [-1, b.id],
+        [0, c.id],
+        [1, c.id],
+      ] as const) {
+        await page.mouse.move(x, middle + offset)
+        await expect(sidebar.locator("[data-titlebar-tab]:hover [data-titlebar-tab-link]")).toHaveAttribute(
+          "href",
+          sessionHref(id),
+        )
+        expect(
+          await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href"), {
+            x,
+            y: middle + offset,
+          }),
+        ).toBe(sessionHref(id))
+      }
+    }
+  }
+
+  await page.locator("html").evaluate((element) => element.setAttribute("dir", "ltr"))
+  await page.mouse.click(upper.x + upper.width / 2, middle - 1)
+  await expectPath(page, sessionHref(b.id))
+  await page.mouse.click(upper.x + upper.width / 2, middle + 1)
+  await expectPath(page, sessionHref(c.id))
+
+  await page.mouse.move(upper.x + upper.width / 2, middle - 1)
+  await page.mouse.down()
+  await page.mouse.move(upper.x + upper.width / 2, lower.y + lower.height - 2, { steps: 8 })
+  await page.mouse.up()
+  await expect(rows.locator("[data-titlebar-tab-title]")).toHaveText([a.title, c.title, b.title])
+
+  await tabB.getByRole("button", { name: "Close tab", exact: true }).click()
+  await expect(rows.locator("[data-titlebar-tab-title]")).toHaveText([a.title, c.title])
+  await expectPath(page, sessionHref(c.id))
+
+  const list = await sidebar.locator("[data-titlebar-tab-list]").boundingBox()
+  if (!list) throw new Error("vertical tab list has no bounding box")
+  for (const [x, y] of [
+    [list.x + list.width / 2, list.y - 1],
+    [list.x + list.width / 2, list.y + list.height + 1],
+    [list.x - 1, list.y + list.height / 2],
+    [list.x + list.width + 1, list.y + list.height / 2],
+  ]) {
+    await page.mouse.move(x, y)
+    await expect(sidebar.locator("[data-titlebar-tab]:hover")).toHaveCount(0)
+  }
+})
+
 test("closing the active server's last tab opens the remaining server tab", async ({ page }) => {
   const sessionA = session({ id: "ses_server_a", directory: "C:/server-a", title: "Server A session" })
   const sessionB = session({ id: "ses_server_b", directory: "/home/server-b", title: "Server B session" })
