@@ -122,11 +122,22 @@ story.beforeEach(async ({ mount, page }) => {
 
 story("closes a blank browser tab from its address field without closing the session", async ({ page }) => {
   const root = page.getByTestId("browser-region-fixture")
+  const outside = root.getByRole("button", { name: "Beta", exact: true })
   await expect(root.getByText("Registrations: 1", { exact: true })).toBeVisible()
-  await root.getByRole("button", { name: "Beta", exact: true }).click()
+  await outside.click()
   await expect(root.getByText("Registrations: 2", { exact: true })).toBeVisible()
   await root.getByRole("button", { name: "Blank page", exact: true }).click()
   await expect(root.getByRole("tab", { name: "New tab", exact: true })).toHaveAttribute("aria-selected", "true")
+
+  // Prove the scope while browser.close is still registered.
+  await outside.focus()
+  await outside.press("ControlOrMeta+w")
+  await expect(root.getByTestId("session-state")).toHaveText("closed")
+  await expect(root.getByTestId("browser-closes")).toHaveText("[]")
+  await expect(root.getByRole("tab", { name: "New tab", exact: true })).toBeVisible()
+  await outside.click()
+  await expect(root.getByTestId("session-state")).toHaveText("open")
+
   const address = root.getByRole("combobox", { name: "Browser address", exact: true })
   await address.fill("example.com")
   await expect(address).toBeFocused()
@@ -134,12 +145,6 @@ story("closes a blank browser tab from its address field without closing the ses
   await expect(root.getByRole("tab", { name: "New tab", exact: true })).toHaveCount(0)
   await expect(root.getByTestId("browser-closes")).toHaveText('["tab_33333333-3333-3333-3333-333333333333"]')
   await expect(root.getByTestId("session-state")).toHaveText("open")
-
-  // Outside the browser scope, the same shortcut still closes the shell session.
-  const outside = root.getByRole("button", { name: "Beta", exact: true })
-  await outside.focus()
-  await outside.press("ControlOrMeta+w")
-  await expect(root.getByTestId("session-state")).toHaveText("closed")
 })
 
 story("keeps a restored browser tab selected and undrawn until the desktop's first inventory", async ({ page }) => {

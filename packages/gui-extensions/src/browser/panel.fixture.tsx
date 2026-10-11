@@ -2,7 +2,6 @@ import { Browser } from "@opencode/plugin-browser/rpc"
 import { DialogProvider } from "@opencode/ui/context/dialog"
 import {
   batch,
-  createComponent,
   createSignal,
   For,
   Show,
@@ -591,12 +590,12 @@ type RegionHost = {
   }
   /** The real browser and file extensions. */
   definitions: readonly Definition[]
-  /** Optional real shell command providers for shortcut cases. */
-  Shell?: ParentComponent
+  /** Real shell command providers for shortcut cases. */
+  Shell: ParentComponent
   /** Shell fallback and the real extension command adapter. */
-  Commands?: Component<{ close: () => void }>
+  Commands: Component<{ close: () => void }>
   /** The real host wrapper that renders an extension in its context. */
-  Contribution?: Component<{ extension: string; children: () => JSX.Element }>
+  Contribution: Component<{ extension: string; children: () => JSX.Element }>
 }
 
 type RegionFixtureState = {
@@ -885,6 +884,12 @@ export function mountBrowserRegion(input: RegionHost) {
         }),
       })
 
+      const browser = () => {
+        const entry = region.entry(region.active() ?? "")
+
+        return entry?.extension === "browser" ? entry : undefined
+      }
+
       return (
         <>
           {/* The host strip draws a trigger for each of these keys. */}
@@ -898,37 +903,33 @@ export function mountBrowserRegion(input: RegionHost) {
             </For>
           </div>
           <p data-testid="selected">{region.active() ?? "none"}</p>
-          <Show when={input.Contribution}>
-            {(Contribution) => (
-              <Show when={region.entry(region.active() ?? "")?.tab.group === "browser"}>
-                <PanelContext.Provider
-                  value={{
-                    visible: () => true,
-                    present: () => true,
-                    placement: () => "side",
-                    reserve: () => false,
-                    animate: () => false,
-                    sidebar: { opened: () => false, width: () => 0, transition: () => false, resize() {}, toggle() {} },
-                    open: () => [tabID],
-                  }}
-                >
-                  {createComponent(Contribution(), {
-                    get extension() {
-                      return region.entry(region.active() ?? "")!.extension
-                    },
-                    children: () =>
-                      region.entry(region.active() ?? "")!.provider.render({
-                        get tab() {
-                          return region.entry(region.active() ?? "")!.tab
-                        },
-                        get session() {
-                          return view()
-                        },
-                        screen,
-                      }),
-                  })}
-                </PanelContext.Provider>
-              </Show>
+          <Show when={browser()}>
+            {(entry) => (
+              <PanelContext.Provider
+                value={{
+                  visible: () => true,
+                  present: () => true,
+                  placement: () => "side",
+                  reserve: () => false,
+                  animate: () => false,
+                  sidebar: { opened: () => false, width: () => 0, transition: () => false, resize() {}, toggle() {} },
+                  open: () => [tabID],
+                }}
+              >
+                <input.Contribution extension={entry().extension}>
+                  {() =>
+                    entry().provider.render({
+                      get tab() {
+                        return entry().tab
+                      },
+                      get session() {
+                        return view()
+                      },
+                      screen,
+                    })
+                  }
+                </input.Contribution>
+              </PanelContext.Provider>
             )}
           </Show>
         </>
@@ -941,11 +942,9 @@ export function mountBrowserRegion(input: RegionHost) {
       return <Show when={extensions.ready()}>{props.children}</Show>
     }
 
-    const Shell = input.Shell ?? ((props: ParentProps) => props.children)
-
     return (
       <DialogProvider>
-        <Shell>
+        <input.Shell>
           <input.ExtensionHostProvider
             definitions={input.definitions}
             disabled={() => new Set<string>()}
@@ -957,12 +956,10 @@ export function mountBrowserRegion(input: RegionHost) {
             }}
             ipc={(token) => (token.id === BrowserPane.id && !store.away ? pane : undefined)}
           >
-            <Show when={input.Commands}>
-              {(Commands) => createComponent(Commands(), { close: () => setStore("closed", true) })}
-            </Show>
+            <input.Commands close={() => setStore("closed", true)} />
             <h1 style={{ "font-size": "24px", "margin-bottom": "16px" }}>Restored side strip</h1>
             <nav style={{ display: "flex", gap: "12px", margin: "16px 0" }}>
-              <button onClick={() => setStore("session", beta)}>Beta</button>
+              <button onClick={() => setStore({ session: beta, closed: false })}>Beta</button>
               <button onClick={inventory}>First inventory</button>
               <button
                 onClick={() => {
@@ -984,7 +981,7 @@ export function mountBrowserRegion(input: RegionHost) {
               <Strip />
             </Ready>
           </input.ExtensionHostProvider>
-        </Shell>
+        </input.Shell>
       </DialogProvider>
     )
   }
