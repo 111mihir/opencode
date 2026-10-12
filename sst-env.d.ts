@@ -66,6 +66,10 @@ declare module "sst" {
       "value": string
     }
     "LogProcessor": import("@cloudflare/workers-types").Service
+    "OPENSEND_API_KEY": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "R2AccessKey": {
       "type": "sst.sst.Secret"
       "value": string
