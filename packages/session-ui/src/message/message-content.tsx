@@ -74,7 +74,7 @@ function modelLabel(
 
 function MessageActionButton(
   props: Pick<ComponentProps<"button">, "disabled" | "onMouseDown" | "onClick" | "aria-label"> & {
-    icon: "check" | "copy" | "reset" | "arrow-down-to-line" | "outline-trash"
+    icon: "check" | "copy" | "code-lines" | "reset" | "arrow-down-to-line" | "outline-trash"
     label: JSX.Element
   },
 ) {
@@ -259,7 +259,12 @@ export function CurrentUserMessageDisplay(props: {
   const data = useData()
   const dialog = useDialog()
   const i18n = useI18n()
-  const [state, setState] = createStore({ copied: false, reverting: false, updating: false })
+
+  const [state, setState] = createStore<{ copied?: "text" | "full"; reverting: boolean; updating: boolean }>({
+    reverting: false,
+    updating: false,
+  })
+
   const status = createMemo(() => props.actions?.pending?.status(props.message.id))
   const pending = createMemo(() => status() !== undefined && status() !== "queued")
   const waiting = createMemo(() => status() === "steering" || status() === "stranded")
@@ -281,10 +286,13 @@ export function CurrentUserMessageDisplay(props: {
 
   const stamp = createMemo(() => timefmt().format(props.message.time.created))
 
-  const copy = async () => {
-    if (!props.text || !(await writeClipboard(props.text))) return
-    setState("copied", true)
-    setTimeout(() => setState("copied", false), 2000)
+  // A Voice message shows the voice agent's framing; "full" copies the prompt the session received.
+  const copy = async (kind: "text" | "full") => {
+    const text = kind === "full" ? props.message.text : props.text
+
+    if (!text || !(await writeClipboard(text))) return
+    setState("copied", kind)
+    setTimeout(() => setState("copied", undefined), 2000)
   }
 
   const revert = async () => {
@@ -441,14 +449,26 @@ export function CurrentUserMessageDisplay(props: {
           </Show>
           <Show when={props.text}>
             <MessageActionButton
-              icon={state.copied ? "check" : "copy"}
-              label={state.copied ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyMessage")}
+              icon={state.copied === "text" ? "check" : "copy"}
+              label={state.copied === "text" ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyMessage")}
               onMouseDown={(event) => event.preventDefault()}
               onClick={(event) => {
                 event.stopPropagation()
-                void copy()
+                void copy("text")
               }}
-              aria-label={state.copied ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyMessage")}
+              aria-label={state.copied === "text" ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyMessage")}
+            />
+          </Show>
+          <Show when={props.voice}>
+            <MessageActionButton
+              icon={state.copied === "full" ? "check" : "code-lines"}
+              label={state.copied === "full" ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyFullMessage")}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation()
+                void copy("full")
+              }}
+              aria-label={state.copied === "full" ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyFullMessage")}
             />
           </Show>
         </div>
