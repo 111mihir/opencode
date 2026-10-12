@@ -458,7 +458,7 @@ export const VoiceMessages = {
   render: () => (
     <CurrentSessionTimelineStory
       title="Voice messages"
-      description="A voice call's agent prompts on the user's behalf: its framing, or the user's spoken words, under a Voice label."
+      description="A voice call's agent prompts on the user's behalf: its framing, or the user's spoken words, with a Voice badge on the bubble."
       document={voiceDocument}
       presentation={voicePresentation}
       width="480px"

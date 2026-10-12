@@ -367,11 +367,13 @@ export function CurrentUserMessageDisplay(props: {
           </Show>
         }
       >
-        <div data-slot="user-message-body">
+        <div data-slot="user-message-body" data-voice={props.voice ? "true" : undefined}>
           <Show when={props.voice}>
-            <span data-slot="user-message-source" class="text-12-regular text-text-weak">
-              {i18n.t("ui.message.voice")}
-            </span>
+            <div data-slot="user-message-voice" role="img" aria-label={i18n.t("ui.message.voice")}>
+              <Tooltip appearance="compact" value={i18n.t("ui.message.voice")} placement="top" gutter={4}>
+                <Icon name="waveform" size="small" />
+              </Tooltip>
+            </div>
           </Show>
           <div data-slot="user-message-text" dir="auto" data-comments={comments().length > 0 ? "true" : undefined}>
             <CurrentHighlightedText text={props.text} files={inlineFiles()} agents={agents()} />
