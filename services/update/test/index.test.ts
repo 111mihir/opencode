@@ -70,7 +70,7 @@ test("returns a retryable 503 when D1 rejects a lookup", async () => {
   expect(await response.json()).toEqual({ error: "Update service temporarily unavailable" })
 })
 
-test("reuses D1 reads across lookups for 30 seconds", async () => {
+test("reuses D1 reads across lookups for 10 minutes", async () => {
   const db = database()
   db.insert({ channel: "reuse", version: "1.0.0", time: 1, active: true })
   setSystemTime(new Date("2026-10-13T00:00:00Z"))
@@ -84,11 +84,11 @@ test("reuses D1 reads across lookups for 30 seconds", async () => {
 
   db.sqlite.query("UPDATE artifact SET active = 0").run()
   db.insert({ channel: "reuse", version: "1.0.1", time: 2, active: true })
-  setSystemTime(new Date("2026-10-13T00:00:29Z"))
+  setSystemTime(new Date("2026-10-13T00:09:59Z"))
   expect(await version(await lookup(db.env, "reuse/cli/opencode"))).toBe("1.0.0")
   expect(db.queries).toHaveLength(2)
 
-  setSystemTime(new Date("2026-10-13T00:00:31Z"))
+  setSystemTime(new Date("2026-10-13T00:10:01Z"))
   expect(await version(await lookup(db.env, "reuse/cli/opencode"))).toBe("1.0.1")
   expect(db.queries).toHaveLength(4)
 })
