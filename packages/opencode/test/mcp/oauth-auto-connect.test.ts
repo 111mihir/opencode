@@ -119,15 +119,22 @@ function serveOAuthMcp(options: OAuthMcpOptions = {}) {
           if (options.lazyDiscovery) {
             const message = await request.json()
             if (message.id === undefined) return new Response(null, { status: 202 })
-            if (message.method === "initialize") return Response.json({
-              jsonrpc: "2.0", id: message.id, result: {
-                protocolVersion: "2025-11-25", capabilities: { tools: {} },
-                serverInfo: { name: "lazy-oauth", version: "1.0.0" },
-              },
-            })
+            if (message.method === "initialize")
+              return Response.json({
+                jsonrpc: "2.0",
+                id: message.id,
+                result: {
+                  protocolVersion: "2025-11-25",
+                  capabilities: { tools: {} },
+                  serverInfo: { name: "lazy-oauth", version: "1.0.0" },
+                },
+              })
             listToolsCalls++
-            return Response.json({ jsonrpc: "2.0", id: message.id,
-              result: { tools: [{ name: "test_tool", inputSchema: { type: "object" } }] } })
+            return Response.json({
+              jsonrpc: "2.0",
+              id: message.id,
+              result: { tools: [{ name: "test_tool", inputSchema: { type: "object" } }] },
+            })
           }
           return transport.handleRequest(request)
         },
@@ -316,7 +323,6 @@ mcpTest.instance("authenticate() connects a public resource-only server without 
     expect(Object.keys(yield* mcp.resources())).toEqual([`${name}:docs://readme`])
   }),
 )
-
 
 mcpTest.instance("explicit auth starts OAuth after anonymous discovery on a lazy server", () =>
   Effect.gen(function* () {
