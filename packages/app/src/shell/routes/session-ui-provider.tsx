@@ -88,6 +88,7 @@ export function SessionUIProvider(
       sessionID={params.id}
       shellRunning={(id) => !!data.shell.get(id)}
       shellOutput={(input) => serverSDK.api.shell.output(input)}
+      turnDiff={(input) => serverSDK.api.session.diff(input)}
       onNavigateToSession={navigateToSession}
       onSessionHref={href}
     >

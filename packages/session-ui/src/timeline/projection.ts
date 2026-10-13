@@ -33,6 +33,7 @@ type Entry =
   | { type: "assistant"; message: SessionMessageAssistant }
   | { type: "notice"; message: Notice }
   | { type: "idle"; message: FailedIdle }
+  | { type: "diff"; message: SessionMessageIdle; from: string }
 
 type Content = SessionMessageAssistant["content"][number]
 
@@ -245,6 +246,8 @@ export namespace Timeline {
     const turnByUserID = new Map<string, Turn>()
     const leading: Notice[] = []
     let current: Turn | undefined
+    // Everything since the last idle marker is one turn, including prompts steered in meanwhile.
+    let execution: { opener: string; turn: Turn; changed: boolean } | undefined
 
     messages.forEach((message) => {
       if (isNotice(message)) {
@@ -269,39 +272,24 @@ export namespace Timeline {
         turns.push(turn)
         turnByUserID.set(message.id, turn)
         current = turn
+        // Undelivered input has not joined the turn yet.
+        if (!pendingInputIDs?.has(message.id))
+          execution = { opener: execution?.opener ?? message.id, turn, changed: execution?.changed ?? false }
 
         return
       }
 
-      if (isFailedIdle(message)) {
-        const last = current?.entries.at(-1)
-
-        if (
-          last?.type === "notice" &&
-          last.message.type === "compaction" &&
-          last.message.status === "failed" &&
-          !isInterrupted(last.message.error)
-        )
-          return
-
-        const lastStep = current?.entries.findLast((entry) => entry.type === "assistant" || entry.type === "idle")
-
-        if (lastStep?.type === "assistant" && lastStep.message.error && !isInterrupted(lastStep.message.error)) return
-
-        if (current && !current.shell) {
-          current.entries.push({ type: "idle", message })
-
-          return
-        }
-
-        const turn: Turn = { id: message.id, time: message.time, entries: [{ type: "idle", message }] }
-        turns.push(turn)
-        current = turn
+      if (message.type === "idle") {
+        appendIdle(message)
+        // The summary follows the turn's last prompt, after any failure the marker reports.
+        if (execution?.changed) execution.turn.entries.push({ type: "diff", message, from: execution.opener })
+        execution = undefined
 
         return
       }
 
       if (message.type !== "assistant") return
+      if (execution && message.snapshot?.files?.length) execution.changed = true
       const existing = current?.user ? current : undefined
 
       if (existing?.user) {
@@ -322,6 +310,33 @@ export namespace Timeline {
       current = turn
     })
 
+    function appendIdle(message: SessionMessageIdle) {
+      if (!isFailedIdle(message)) return
+      const last = current?.entries.at(-1)
+
+      if (
+        last?.type === "notice" &&
+        last.message.type === "compaction" &&
+        last.message.status === "failed" &&
+        !isInterrupted(last.message.error)
+      )
+        return
+
+      const lastStep = current?.entries.findLast((entry) => entry.type === "assistant" || entry.type === "idle")
+
+      if (lastStep?.type === "assistant" && lastStep.message.error && !isInterrupted(lastStep.message.error)) return
+
+      if (current && !current.shell) {
+        current.entries.push({ type: "idle", message })
+
+        return
+      }
+
+      const turn: Turn = { id: message.id, time: message.time, entries: [{ type: "idle", message }] }
+      turns.push(turn)
+      current = turn
+    }
+
     const activeMessageID =
       turns.findLast((turn) => !pendingInputIDs?.has(turn.id) || turn.entries.some((entry) => entry.type === "idle"))
         ?.id ?? turns.at(-1)?.id
@@ -339,6 +354,7 @@ export namespace Timeline {
             entry.type === "notice"
               ? visibleNotice(entry.message)
               : entry.type === "idle" ||
+                entry.type === "diff" ||
                 !!entry.message.error ||
                 !!entry.message.retry ||
                 entry.message.content.some((content) => isRenderable(content, showReasoning, detail)),
@@ -555,6 +571,12 @@ export namespace Timeline {
                 text: unwrapErrorMessage(entry.message.error.message),
               }),
             )
+
+          return
+        case "diff":
+          appendAssistantSegment(assistantSegment)
+          assistantSegment = []
+          rows.push(new TimelineRow.TurnDiff({ userMessageID: turnID, messageID: entry.message.id, from: entry.from }))
 
           return
         case "notice":

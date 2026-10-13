@@ -36,6 +36,9 @@ type Data = {
   }
 }
 
+/** Loads the files changed by the turn opened by the user message `from`. */
+export type TurnDiffFn = (input: { sessionID: string; from: string }) => Promise<readonly FileDiffInfo[]>
+
 export type NavigateToSessionFn = (sessionID: string) => void
 
 export type SessionHrefFn = (sessionID: string) => string
@@ -48,6 +51,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     sessionID?: string
     shellRunning?: (id: string) => boolean
     shellOutput?: (input: ShellOutputInput) => Promise<ShellOutputOutput>
+    turnDiff?: TurnDiffFn
     onNavigateToSession?: NavigateToSessionFn
     onSessionHref?: SessionHrefFn
   }) => {
@@ -65,6 +69,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       sessionHref: props.onSessionHref,
       shellRunning: props.shellRunning,
       shellOutput: props.shellOutput,
+      turnDiff: props.turnDiff,
     }
   },
 })

@@ -72,6 +72,17 @@ export namespace TimelineRow {
     inboxID: string
   }> {}
 
+  /**
+   * The files a finished turn changed, shown once the Session goes idle. `messageID` is the
+   * idle marker that ended the turn; `from` is the prompt that opened it, which names the turn
+   * to the session diff route even when later prompts were steered in.
+   */
+  export class TurnDiff extends Data.TaggedClass("TurnDiff")<{
+    userMessageID: string
+    messageID: string
+    from: string
+  }> {}
+
   /** Where the host shows the active turn's live status when undelivered input waits below it. */
   export class Activity extends Data.TaggedClass("Activity")<{
     userMessageID: string
@@ -88,6 +99,7 @@ export namespace TimelineRow {
     | Error
     | Retry
     | CompactionQueued
+    | TurnDiff
     | Activity
 
   export const key: (row: TimelineRow) => string = Match.typeTags<TimelineRow>()({
@@ -104,6 +116,7 @@ export namespace TimelineRow {
     Error: (row) => `error:${row.userMessageID}`,
     Retry: (row) => `retry:${row.userMessageID}`,
     CompactionQueued: (row) => `compaction-queued:${row.inboxID}`,
+    TurnDiff: (row) => `turn-diff:${row.messageID}`,
     // One live status exists at a time; it keeps its identity when the active turn changes.
     Activity: () => "activity",
   })
@@ -129,5 +142,6 @@ export type TimelineRowMap = {
   Retry: { userMessageID: string }
   Error: { userMessageID: string; text: string }
   CompactionQueued: { userMessageID: string; inboxID: string }
+  TurnDiff: { userMessageID: string; messageID: string; from: string }
   Activity: { userMessageID: string }
 }
