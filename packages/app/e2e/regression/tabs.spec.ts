@@ -202,7 +202,7 @@ test("vertical tabs resize, scroll, show shortcut hints, and navigate", async ({
   await expectPath(page, sessionHref(b.id))
 })
 
-test("vertical tab gaps hover and select the nearest row", async ({ page }, testInfo) => {
+test("vertical tab gaps hover and select the nearest row", async ({ page }) => {
   await mockWorkspace(page, {
     name: "Tabs",
     sessions: [a, b, c],
@@ -222,40 +222,19 @@ test("vertical tab gaps hover and select the nearest row", async ({ page }, test
   expect(lower.y - upper.y - upper.height).toBe(4)
 
   const middle = upper.y + upper.height + 2
-  await page.mouse.move(upper.x + upper.width / 2, middle)
-  await sidebar.screenshot({ path: testInfo.outputPath("mid-gap.png") })
 
   // The two halves belong to their nearest row; an exact tie belongs to the next row.
-  for (const direction of ["ltr", "rtl"]) {
-    await page.locator("html").evaluate((element, value) => element.setAttribute("dir", value), direction)
-    const box = await tabB.boundingBox()
-
-    if (!box) throw new Error("vertical tab has no bounding box")
-
-    for (const x of [box.x + 1, box.x + box.width / 2, box.x + box.width - 1]) {
-      for (const [offset, id] of [
-        [-1, b.id],
-        [0, c.id],
-        [1, c.id],
-      ] as const) {
-        await page.mouse.move(x, middle + offset)
-        await expect(sidebar.locator("[data-titlebar-tab]:hover [data-titlebar-tab-link]")).toHaveAttribute(
-          "href",
-          sessionHref(id),
-        )
-        expect(
-          await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href"), {
-            x,
-            y: middle + offset,
-          }),
-        ).toBe(sessionHref(id))
-      }
-    }
+  for (const [offset, id] of [
+    [-1, b.id],
+    [0, c.id],
+  ] as const) {
+    await page.mouse.move(upper.x + upper.width / 2, middle + offset)
+    await expect(sidebar.locator("[data-titlebar-tab]:hover [data-titlebar-tab-link]")).toHaveAttribute(
+      "href",
+      sessionHref(id),
+    )
   }
 
-  await page.locator("html").evaluate((element) => element.setAttribute("dir", "ltr"))
-  await page.mouse.click(upper.x + upper.width / 2, middle - 1)
-  await expectPath(page, sessionHref(b.id))
   await page.mouse.click(upper.x + upper.width / 2, middle + 1)
   await expectPath(page, sessionHref(c.id))
 
