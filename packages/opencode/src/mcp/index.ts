@@ -8,6 +8,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
+import { createFetchWithInit } from "@modelcontextprotocol/sdk/shared/transport.js"
 import {
   ListRootsRequestSchema,
   type LoggingMessageNotification,
@@ -850,12 +851,21 @@ const layer = Layer.effect(
       const directory = yield* InstanceState.directory
 
       return yield* Effect.tryPromise({
-        try: () => {
+        try: async () => {
+          const { auth, discoverOAuthServerInfo } = await import("@modelcontextprotocol/sdk/client/auth.js")
+          const fetchFn = createFetchWithInit(undefined, mcpConfig.headers ? { headers: mcpConfig.headers } : undefined)
+          const discovery = await discoverOAuthServerInfo(url, { fetchFn })
+          // Public discovery does not complete an explicit sign-in to an OAuth-enabled server.
+          if (
+            discovery.authorizationServerMetadata &&
+            (await auth(authProvider, { serverUrl: url, scope: oauthConfig?.scope, fetchFn })) !== "AUTHORIZED"
+          ) {
+            throw new UnauthorizedError()
+          }
           const client = createClient(directory)
-          return client.connect(transport).then(async () => {
-            await authProvider.commit()
-            return { authorizationUrl: "", oauthState, client } satisfies AuthResult
-          })
+          await client.connect(transport)
+          await authProvider.commit()
+          return { authorizationUrl: "", oauthState, client } satisfies AuthResult
         },
         catch: (error) => error,
       }).pipe(
