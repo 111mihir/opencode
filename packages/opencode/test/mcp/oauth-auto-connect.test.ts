@@ -23,6 +23,7 @@ const mcpTest = testEffect(
 interface OAuthMcpOptions {
   capabilities?: "tools" | "resources"
   oauthMetadata?: boolean
+  metadataFailure?: "oauth" | "openid"
   lazyDiscovery?: boolean
   protectedCalls?: boolean
   backgroundChallenge?: boolean
@@ -42,6 +43,8 @@ function serveOAuthMcp(options: OAuthMcpOptions = {}) {
       })
       let listToolsCalls = 0
       let protectedCalls = 0
+      let authorizeCalls = 0
+      const metadataRequests: string[] = []
       let releaseGet: () => void = () => {}
       const getGate = new Promise<void>((resolve) => {
         releaseGet = resolve
@@ -68,6 +71,14 @@ function serveOAuthMcp(options: OAuthMcpOptions = {}) {
           const origin = url.origin
           const mcpUrl = `${origin}/mcp`
 
+          if (url.pathname === "/authorize") authorizeCalls++
+          if (url.pathname.startsWith("/.well-known/")) metadataRequests.push(url.pathname)
+          if (
+            (options.metadataFailure === "oauth" && url.pathname === "/.well-known/oauth-authorization-server") ||
+            (options.metadataFailure === "openid" && url.pathname === "/.well-known/openid-configuration")
+          ) {
+            return new Response("Unavailable", { status: 503 })
+          }
           if (options.oauthMetadata === false && url.pathname.startsWith("/.well-known/")) {
             return new Response("Not found", { status: 404 })
           }
@@ -181,6 +192,8 @@ function serveOAuthMcp(options: OAuthMcpOptions = {}) {
         },
         listToolsCalls: () => listToolsCalls,
         protectedCalls: () => protectedCalls,
+        authorizeCalls: () => authorizeCalls,
+        metadataRequests: () => metadataRequests,
         releaseGet: () => releaseGet(),
         close: async () => {
           await http.stop(true)
@@ -343,6 +356,29 @@ mcpTest.instance("authenticate() connects a public server without OAuth metadata
     expect((yield* mcp.status())[name]?.status).toBe("connected")
   }),
 )
+
+for (const metadataFailure of ["oauth", "openid"] as const) {
+  mcpTest.instance(`authenticate() connects without OAuth when ${metadataFailure} discovery returns 503`, () =>
+    Effect.gen(function* () {
+      yield* stopOAuthCallback
+      const server = yield* serveOAuthMcp({ oauthMetadata: false, metadataFailure, lazyDiscovery: true })
+      server.allowAnonymous()
+      const mcp = yield* MCP.Service
+      const name = `test-oauth-discovery-${metadataFailure}-503`
+      const added = yield* mcp.add(name, {
+        ...remote(server.url),
+        ...(metadataFailure === "openid" ? { headers: { Authorization: "Bearer static-test-token" } } : {}),
+      })
+      expect((added.status as Record<string, { status: string }>)[name]?.status).toBe("connected")
+      expect((yield* mcp.authenticate(name)).status).toBe("connected")
+      expect((yield* mcp.status())[name]?.status).toBe("connected")
+      expect(server.metadataRequests()).toContain(
+        metadataFailure === "oauth" ? "/.well-known/oauth-authorization-server" : "/.well-known/openid-configuration",
+      )
+      expect(server.authorizeCalls()).toBe(0)
+    }),
+  )
+}
 
 mcpTest.instance("authenticate() connects a public resource-only server without listing tools", () =>
   Effect.gen(function* () {

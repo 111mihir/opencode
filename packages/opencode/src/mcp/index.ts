@@ -901,10 +901,11 @@ const layer = Layer.effect(
         try: async () => {
           const { auth, discoverOAuthServerInfo } = await import("@modelcontextprotocol/sdk/client/auth.js")
           const fetchFn = createFetchWithInit(undefined, mcpConfig.headers ? { headers: mcpConfig.headers } : undefined)
-          const discovery = await discoverOAuthServerInfo(url, { fetchFn })
+          // Optional discovery must not block public or static-header MCP connections.
+          const discovery = await discoverOAuthServerInfo(url, { fetchFn }).catch(() => undefined)
           // Public discovery does not complete an explicit sign-in to an OAuth-enabled server.
           if (
-            discovery.authorizationServerMetadata &&
+            discovery?.authorizationServerMetadata &&
             (await auth(authProvider, { serverUrl: url, scope: oauthConfig?.scope, fetchFn })) !== "AUTHORIZED"
           ) {
             throw new UnauthorizedError()
