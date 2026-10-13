@@ -181,7 +181,7 @@ test("open file tab browses, searches, and tracks missing files", async ({ page 
   const missingResponse = page.waitForResponse((response) => response.url().includes("/api/fs/read/README.md"))
   await workspace.push([filesystemEvent(directory, "README.md", "unlink")])
   await missingResponse
-  await expect(page.getByText("Failed to load file", { exact: true })).toBeVisible()
+  await expect(page.getByText("Failed to load file", { exact: true })).toHaveCount(0)
   await expect(tab("File not found: README.md")).toHaveAttribute("aria-selected", "true")
   await expect(panel.getByText("File not found: README.md", { exact: true })).toBeVisible()
 
