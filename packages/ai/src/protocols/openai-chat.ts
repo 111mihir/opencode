@@ -808,7 +808,7 @@ const lowerOptions = (request: LLMRequest, supportsStore: boolean) => {
 
 export const fromRequest = Effect.fn("OpenAIChat.fromRequest")(function* (
   request: LLMRequest,
-  options: LoweringOptions = {},
+  options: Pick<LoweringOptions, "assistant"> = {},
 ) {
   // `fromRequest` returns the provider body only. Endpoint, auth, framing,
   // validation, and HTTP execution are composed by `Route.make`.
@@ -864,11 +864,8 @@ const chatCacheMarker = (format: ReturnType<typeof effectiveCacheFormat>) => {
     const breakpoint = cacheBreakpoint()
     return (cache: CacheHint | undefined): CacheMarker => ({ prompt_cache_breakpoint: breakpoint(cache) })
   }
-  if (format === "anthropic" || format === "alibaba") {
-    const control = cacheControl()
-    return (cache: CacheHint | undefined): CacheMarker => ({ cache_control: control(cache) })
-  }
-  return undefined
+  const control = cacheControl()
+  return (cache: CacheHint | undefined): CacheMarker => ({ cache_control: control(cache) })
 }
 
 // =============================================================================
